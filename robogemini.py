@@ -16,25 +16,21 @@ text = ""
 
 roboflow_configs = {
     "config1": {
-        "api_key": "xGU2r55RDhht4mAvqe6u",
         "workspace": "capstone-workspace",
         "project": "new-final-dataset-eqnh8",
         "version": 1
     },
     "config2": {
-        "api_key": "xGU2r55RDhht4mAvqe6u",
         "workspace": "test-xmfge",
         "project": "test-1-ca75d",
         "version": 2
     },
-    "config3": {
-        "api_key": "xGU2r55RDhht4mAvqe6u",
+    "config3": 
         "workspace": "mohammad-amin-asadi-1tacf",
         "project": "bone-fracture-vqdiz",
         "version": 1
     },
     "config4": {
-        "api_key": "xGU2r55RDhht4mAvqe6u",
         "workspace": "dog-lee2j",
         "project": "dogs-breeds-lnpqs",
         "version": 1
@@ -57,7 +53,7 @@ db_cursor = db_connection.cursor()
 
 # Or use `os.getenv('GOOGLE_API_KEY')` to fetch an environment variable.
 #GOOGLE_API_KEY = os.environ.get('AIzaSyDqmJIr8S3u1lJlzjVaZXdMVgBKus3gNAY')
-genai.configure(api_key='AIzaSyDqmJIr8S3u1lJlzjVaZXdMVgBKus3gNAY')
+genai.configure(api_key='your_api_key')
 def text_to_speech(text):
     tts = gTTS(text=text, lang='ko', tld='co.kr', slow=False)
     tts.save("/home/plab/Desktop/robogemini/output.mp3")
