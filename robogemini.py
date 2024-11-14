@@ -52,7 +52,6 @@ db_connection = mysql.connector.connect(
 db_cursor = db_connection.cursor()
 
 # Or use `os.getenv('GOOGLE_API_KEY')` to fetch an environment variable.
-#GOOGLE_API_KEY = os.environ.get('AIzaSyDqmJIr8S3u1lJlzjVaZXdMVgBKus3gNAY')
 genai.configure(api_key='your_api_key')
 def text_to_speech(text):
     tts = gTTS(text=text, lang='ko', tld='co.kr', slow=False)
