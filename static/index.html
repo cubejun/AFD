@@ -1,0 +1,531 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>치아 X-ray 영상 진단</title>
+    <style>
+        /* Drop area styles */
+        #drop-area {
+            border: 2px dashed #ccc;
+            border-radius: 20px;
+            width: 300px;
+            margin: 50px auto;
+            padding: 20px;
+            text-align: center;
+            font-family: Arial, sans-serif;
+            position: relative;
+        }
+        
+        #drop-area.highlight {
+            border-color: purple;
+        }
+        #preview {
+            display: none;
+            margin-top: 20px;
+            max-width: 100%;
+        }
+        #chat-interface {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            margin: 30px auto;
+            width: 600px;
+        }
+
+        #chat-input {
+            width: 80%;
+            padding: 10px;
+            border-radius: 20px;
+            border: 1px solid #ccc;
+            font-size: 16px;
+            outline: none;
+        }
+
+        #send-button {
+            width: 10%;
+            padding: 10px;
+            margin-left: 5px;
+            border: none;
+            border-radius: 20px;
+            background-color: #4CAF50;
+            color: white;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        #send-button:disabled {
+            background-color: #ccc; /* 비활성화된 버튼 색상 */
+            cursor: not-allowed; /* 클릭할 수 없도록 커서 변경 */
+        }
+        #send-button:hover {
+            background-color: #45a049;
+        }
+        /* Loading overlay styles */
+        .loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5); /* Semi-transparent black */
+            display: none; /* Initially hidden */
+            z-index: 9999; /* Ensure it's on top of everything */
+        }
+        
+        /* Loading spinner styles */
+        .loading-spinner {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            border: 4px solid #f3f3f3; /* Light grey */
+            border-top: 4px solid #3498db; /* Blue */
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 2s linear infinite; /* Rotate animation */
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        /* Other styles */
+        .uploaded-image {
+            width: 600px;
+            height: 400px;
+            margin: 10px;
+            object-fit: cover;
+        }
+        
+        #updateGallery {
+            position: absolute;
+            bottom: -30px;
+            left: 50%;
+            transform: translateX(-50%);
+        }
+        
+        #gallery {
+            margin-top: 20px;
+            list-style: none;
+            padding: 0;
+        }
+        
+        #gallery li {
+            margin-bottom: 20px;
+            text-align: center;
+            border-bottom: 1px solid #ccc;
+            padding-bottom: 20px;
+        }
+        
+        #gallery img {
+            max-width: 100%;
+            margin-bottom: 10px;
+        }
+        @media (max-width: 768px) {
+            #gallery li {
+                flex-direction: row; /* 모바일에서 좌우 배치로 전환 */
+                justify-content: center;
+            }
+            .uploaded-image {
+                width: 40%; /* 모바일에서 이미지가 너무 커지지 않도록 조절 */
+                height: auto;
+                margin: 0 5px;
+            }
+        }
+        .list-item {
+            margin-bottom: 10px;  /* 항목 간 간격 */
+        }
+
+        /* 오디오와 삭제 버튼을 포함한 컨테이너 */
+        .audio-button-container {
+            display: flex;            /* 수평 배치 */
+            align-items: center;      /* 세로 중앙 정렬 */
+            justify-content: center;
+            gap: 10px;                /* 오디오와 버튼 사이의 간격 */
+        }
+        /* 삭제 버튼 스타일 */
+        .delete-button {
+            background-color: #f1f1f1;  /* 붉은 색 배경 */
+            color: black;               /* 흰색 텍스트 */
+            border: 1px solid #f1f1f1;               /* 기본 테두리 없애기 */
+            border-radius: 20px;         /* 둥글지만 네모 모서리 */
+            padding: 10px;         /* 버튼 크기 */
+            font-size: 24px;            /* 텍스트 크기 */
+            cursor: pointer;           /* 마우스 포인터 변경 */
+            transition: background-color 0.3s ease, transform 0.2s;  /* 호버 효과 추가 */
+            width: 50px;
+        }
+
+        .delete-button:hover {
+            background-color: #ff1a1a;  /* 호버 시 붉은색이 좀 더 진해짐 */
+            color: white;
+            transform: scale(1.05);       /* 호버 시 버튼 크기 살짝 커짐 */
+        }
+
+        .delete-button:active {
+            transform: scale(1);         /* 클릭 시 크기 원래대로 */
+        }
+    </style>
+</head>
+<body>
+	<h1>사진 분석</h1>
+    <!-- Drop area -->
+    <div id="drop-area">
+        <p>여기로 이미지를 드롭하거나 클릭하세요</p>
+        <input type="file" id="fileElem" accept="image/*" style="display:none">
+        <label class="button" for="fileElem">파일 선택</label>
+        <br>
+        <img id="preview" alt="이미지 미리보기">
+        <!-- <button id="updateGallery">업데이트</button> -->
+    </div>
+    <div id="config-selection">
+        <label for="config">Roboflow 구성 선택:</label>
+        <select id="config" onchange="updateConfig()">
+            <option value="config1">치아 X-ray</option>
+            <option value="config2">폐 X-ray</option>
+            <option value="config3">골절 진단</option>
+            <option value="config4">개 품종</option>
+            <!-- 필요한 만큼 옵션을 추가 -->
+        </select>
+    </div>
+    <div id="chat-interface">
+        <input type="text" id="chat-input" placeholder="여기에 입력하세요..." />
+        <button id="send-button" disabled>전송</button>
+    </div>
+    <!-- Loading overlay -->
+    <div class="loading-overlay" id="loading-overlay">
+        <div class="loading-spinner"></div>
+    </div>
+
+    <!-- Gallery -->
+    <ul id="gallery"></ul>
+    <!-- <button id="clearAllButton">데이터 지우기</button> -->
+    <script>
+        document.getElementById('config').addEventListener('change', function() {
+            var selectedConfig = this.value;
+            // AJAX 요청을 통해 서버에 선택된 구성 전송
+            fetch('/update_config', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ config_name: selectedConfig })
+            });
+        });
+        document.addEventListener('DOMContentLoaded', () => {
+			clearPreview();
+            let dropArea = document.getElementById('drop-area');
+            let fileElem = document.getElementById('fileElem');
+            let updateGalleryBtn = document.getElementById('send-button');
+            let configSelect = document.getElementById('config');
+            let selectedConfig = configSelect.value;
+            // Drag and drop events
+            ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+                dropArea.addEventListener(eventName, preventDefaults, false);
+            });
+
+            function preventDefaults(e) {
+                e.preventDefault();
+                e.stopPropagation();
+            }
+
+            ['dragenter', 'dragover'].forEach(eventName => {
+                dropArea.addEventListener(eventName, () => dropArea.classList.add('highlight'), false);
+            });
+
+            ['dragleave', 'drop'].forEach(eventName => {
+                dropArea.addEventListener(eventName, () => dropArea.classList.remove('highlight'), false);
+            });
+
+            dropArea.addEventListener('drop', handleDrop, false);
+
+            function handleDrop(e) {
+                let dt = e.dataTransfer;
+                let files = dt.files;
+                handleFiles(files);
+            }
+
+            fileElem.addEventListener('change', handleFilesFromInput, false);
+
+            function handleFilesFromInput() {
+                let files = this.files;
+                handleFiles(files);
+            }
+
+            function handleFiles(files) {
+                [...files].forEach(file => {
+                    uploadFile(file);
+                    previewFile(file);
+                });
+            }
+
+            function previewFile(file) {
+                let reader = new FileReader();
+                reader.readAsDataURL(file);
+                reader.onloadend = function () {
+                    let img = document.getElementById('preview');
+                    img.src = reader.result;
+                    img.style.display = 'block';
+                };
+            }
+
+            function uploadFile(file) {
+                let url = '/upload';
+                let formData = new FormData();
+                formData.append('image', file);
+
+                fetch(url, {
+                    method: 'POST',
+                    body: formData
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        console.log('성공적으로 업로드되었습니다:', data.message);
+                        processImage(); // 업로드가 성공하면 이미지 처리 시작
+                        window.scrollTo(0,document.body.scrollHeight);
+                    } else {
+                        console.error('업로드 오류:', data.error);
+                        hideLoadingMessage(); // 업로드 실패 시 로딩 메시지 숨김
+                    }
+                })
+                .catch(() => {
+                    console.error('업로드 실패');
+                    hideLoadingMessage(); // 업로드 실패 시 로딩 메시지 숨김
+                });
+            }
+
+            function processImage() {
+                showLoadingMessage(); // 이미지 처리 시작 시 로딩 메시지 표시
+                let formData = new FormData();
+                formData.append('image', document.getElementById('fileElem').files[0]);
+                formData.append('config_name', document.getElementById('config').value);
+                fetch('/robogemini', {
+                    method: 'POST', // POST 요청으로 수정
+                    body: formData
+                })
+                .then(response => {
+                    if (response.ok) {
+                        console.log('Flask 엔드포인트 호출 성공');
+                        loadImages(); // 갤러리 업데이트
+                        window.scrollTo(0,document.body.scrollHeight);
+                    } else {
+                        console.error('Flask 엔드포인트 호출 실패');
+                    }
+                    hideLoadingMessage(); // 이미지 처리 완료 후 로딩 메시지 숨김
+                })
+                .catch(error => {
+                    console.error('Flask 엔드포인트 호출 중 오류:', error);
+                    hideLoadingMessage(); // 이미지
+                })
+                .catch(error => {
+                    console.error('Flask 엔드포인트 호출 중 오류:', error);
+                    hideLoadingMessage(); // 이미지 처리 오류 시 로딩 메시지 숨김
+                });
+                loadImages();
+            }
+            function updateConfig() {
+                let selectedConfig = configSelect.value; // 선택된 구성 값 가져오기
+
+                fetch('/update_config', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ config_name: selectedConfig }) // 선택된 구성 서버에 전송
+                })
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('구성 업데이트 실패');
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    console.log(data.message); // 서버 응답 메시지
+                    //loadImages(); // 구성이 업데이트된 후 이미지를 로드
+                })
+                .catch(error => console.error('구성 업데이트 오류:', error));
+            }
+
+            function loadImages() {
+                fetch('/fetch_images')
+                    .then(response => response.json())
+                    .then(data => {
+                        let gallery = document.getElementById('gallery');
+                        gallery.innerHTML = '';
+                        if (data.message === '데이터가 없습니다.') {
+                            gallery.innerHTML = '<p style="text-align: center;">현재 등록된 이미지가 없습니다.</p>';
+                        } else {
+                            data.images.forEach(image => {
+                                let listItem = document.createElement('li');
+                                listItem.classList.add('list-item');
+
+                                let img1 = document.createElement('img');
+                                img1.src = 'data:image/jpeg;base64,' + image.image_data1;
+                                img1.classList.add('uploaded-image');
+                                listItem.appendChild(img1);
+
+                                let img2 = document.createElement('img');
+                                img2.src = 'data:image/jpeg;base64,' + image.image_data2;
+                                img2.classList.add('uploaded-image');
+                                listItem.appendChild(img2);
+
+                                let result = document.createElement('p');
+                                result.textContent = image.result;
+                                listItem.appendChild(result);
+
+                                let diagnosis1 = document.createElement('p');
+                                diagnosis1.textContent = 'Diagnosis 1: ' + image.diagnosis1;
+                                listItem.appendChild(diagnosis1);
+
+                                let diagnosis2 = document.createElement('p');
+                                diagnosis2.textContent = 'Diagnosis 2: ' + image.diagnosis2;
+                                listItem.appendChild(diagnosis2);
+
+                                let audioButtonContainer = document.createElement('div');
+                                audioButtonContainer.classList.add('audio-button-container');  // 수평 배치를 위한 클래스 추가
+
+                                let audio = document.createElement('audio');
+                                audio.controls = true;
+                                let source = document.createElement('source');
+                                source.src = 'data:audio/mpeg;base64,' + image.audio_data;
+                                source.type = 'audio/mpeg';
+                                audio.appendChild(source);
+                                listItem.appendChild(audio);
+
+                                let deleteButton = document.createElement('button');
+                                deleteButton.textContent = '×';
+                                deleteButton.classList.add('delete-button');
+                                deleteButton.onclick = function() {
+                                    deleteImage(image.id, listItem);  // 해당 이미지 삭제
+                                };
+                                audioButtonContainer.appendChild(audio);  // 오디오 추가
+                                audioButtonContainer.appendChild(deleteButton);  // 삭제 버튼 추가
+
+                                // 오디오와 삭제 버튼 컨테이너를 리스트 항목에 추가
+                                listItem.appendChild(audioButtonContainer);
+                                gallery.appendChild(listItem);
+                            });
+                        }
+                    })
+                    .catch(error => console.error('이미지 로드 오류:', error));
+                    
+            }
+            function deleteImage(imageId, row) {
+                fetch('/delete_image', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ id: imageId })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.message === '삭제 성공') {
+                        row.remove();  // 삭제된 항목을 화면에서 제거
+                        loadImages();
+                    } 
+                })
+                .catch(error => {
+                    console.error('삭제 중 오류 발생:', error);
+                });
+            }
+            function clearPreview() {
+                let img = document.getElementById('preview');
+                img.src = '';
+                img.style.display = 'none';
+            }
+            document.getElementById("chat-input").addEventListener("input", () => {
+                const input = document.getElementById("chat-input").value;
+                const button = document.getElementById("send-button");
+                // 입력값이 있으면 버튼을 활성화, 없으면 비활성화
+                button.disabled = input.trim() === ""; 
+            });
+            updateGalleryBtn.addEventListener('click', () => {
+                let gallery = document.getElementById('gallery');
+                const textInput = document.getElementById('chat-input').value;
+                if (textInput.trim() === "") {
+                    event.preventDefault();  // 텍스트가 없으면 클릭을 막음
+                } else {
+                    // 전송된 텍스트 처리 (여기서는 단순히 초기화만)
+                    document.getElementById("chat-input").value = ""; // 입력창 초기화
+                    document.getElementById("send-button").disabled = true; // 버튼 비활성화
+                }
+                clearPreview();
+                if (textInput.trim() !== '') {
+                    // API에 보낼 데이터 준비
+                    const requestData = {
+                        text: textInput
+                    };
+
+                    // Gemini API에 요청 보내기
+                    fetch('/gemini-api-endpoint', { // '/gemini-api-endpoint'를 실제 API 엔드포인트로 변경하세요.
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify(requestData)
+                    })
+                    .then(response => response.json()) // 응답을 JSON으로 처리
+                    .then(data => {
+                        // console.log('API 응답:', data);
+                        // API 응답 데이터를 처리하는 로직 추가
+                        
+                    })
+                    .catch(error => {
+                        console.error('API 요청 중 오류 발생:', error);
+                    });
+
+                    // 입력 필드 비우기
+                    document.getElementById('chat-input').value = '';
+                } else {
+                    //alert('텍스트를 입력해주세요.');
+                }
+                processImage();
+            });
+            configSelect.addEventListener('change', () => {
+                let gallery = document.getElementById('gallery');
+                clearPreview();
+                loadImages();
+            });
+            window.addEventListener('load', () => {
+                // 페이지가 로드될 때 실행할 동작
+                loadImages(); // 예: 새로고침 시 이미지를 로드하는 함수 호출
+
+                // 만약 이전에 선택된 구성 값을 기억하고 싶다면
+                let configSelect = document.getElementById('config');
+                let savedConfig = sessionStorage.getItem('selectedConfig');
+                
+                if (savedConfig) {
+                    configSelect.value = savedConfig; // 이전에 선택된 구성으로 설정
+                }
+
+                // 드롭다운 선택 값이 변경될 때마다 localStorage에 저장
+                configSelect.addEventListener('change', () => {
+                    sessionStorage.setItem('selectedConfig', configSelect.value);
+                    loadImages(); // 선택이 변경될 때 이미지 다시 로드
+                });
+            });
+
+            // 초기 로딩 메시지 숨기기
+            hideLoadingMessage();
+
+            // 이미지 로드
+            loadImages();
+            window.scrollTo(0,document.body.scrollHeight);
+        });
+        
+        // 로딩 메시지 표시 함수
+        function showLoadingMessage() {
+            document.getElementById('loading-overlay').style.display = 'block';
+        }
+
+        // 로딩 메시지 숨기기 함수
+        function hideLoadingMessage() {
+            document.getElementById('loading-overlay').style.display = 'none';
+        }
+    </script>
+</body>
+</html>
